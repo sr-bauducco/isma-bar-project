@@ -6,7 +6,6 @@ from spade.behaviour import OneShotBehaviour, CyclicBehaviour
 NUM_ATENDENTES = 1
 
 class Bar(spade.agent.Agent):
-
     def __init__(self, jid, password):
         super().__init__(jid, password)
         self.atendentes = []
@@ -19,15 +18,26 @@ class Bar(spade.agent.Agent):
         }
         self.avaliacoes = {criterio: [] for criterio in self.pontuacao}
 
+    @property
+    def nota_geral(self):
+        return sum(self.pontuacao.values()) / len(self.pontuacao)
+
+
     def registrar_nota(self, criterio, nota):
+        if criterio not in self.avaliacoes:
+            raise ValueError(f"critério inválido: {criterio}")
+        if not 0 <= nota <= 10:
+            raise ValueError("nota deve estar entre 0 e 10")
         self.avaliacoes[criterio].append(nota)
         notas = self.avaliacoes[criterio]
-        self.pontuacao[criterio] = sum(notas) / len(notas)   # média só deste critério
+        self.pontuacao[criterio] = sum(notas) / len(notas)
         return self.pontuacao[criterio]
+
 
     class Encerrar(OneShotBehaviour):
         async def run(self):
             await self.agent.stop()
+
 
     class ReceberAvaliacao(CyclicBehaviour):
         async def run(self):
@@ -41,6 +51,9 @@ class Bar(spade.agent.Agent):
                     print(f"[Bar] recebi avaliacao: {criterio} = {nota} (média: {media:.2f})")
                 except Exception as e:
                     print(f"[Bar] erro ao processar avaliacao: {e}\nInforme no formato 'criterio:nota' (ex: limpeza:8)")
+            else:
+                # nota atual
+                print(f"[Bar] nota atual: {self.agent.nota_geral:.2f}")
 
     async def setup(self):
         print(f"Hello! Bar agent {self.jid} is starting...")

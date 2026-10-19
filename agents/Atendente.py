@@ -15,7 +15,7 @@ class Atendente(spade.agent.Agent):
 
     class DarNota(OneShotBehaviour):
         async def run(self):
-            nota = -5
+            nota = 3
             msg = spade.message.Message(to=self.agent.bar_jid)
             msg.set_metadata("performative", "inform")
             msg.body = "atendimento:" + str(nota)
