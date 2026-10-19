@@ -12,11 +12,22 @@ class Atendente(spade.agent.Agent):
     class Encerrar(OneShotBehaviour):
         async def run(self):
             await self.agent.stop()
+
+    class DarNota(OneShotBehaviour):
+        async def run(self):
+            nota = -5
+            msg = spade.message.Message(to=self.agent.bar_jid)
+            msg.set_metadata("performative", "inform")
+            msg.body = "atendimento:" + str(nota)
+
+            await self.send(msg)
+            print(f"[Atendente] enviei nota {nota} para o bar {self.agent.bar_jid}")
     
     
     async def setup(self):
         print(f"Hello! Atendente agent {self.jid} is starting...")
         print(f"Atendente is serving bar agent {self.bar_jid}")
         print(f"Atendente {'is' if self.is_serving else 'is not'} currently serving.")
+        self.add_behaviour(self.DarNota())
         self.add_behaviour(self.Encerrar())
 
