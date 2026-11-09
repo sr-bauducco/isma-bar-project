@@ -1,1 +1,2 @@
 spade==4.1.4
+spade_bdi <= 0
