@@ -1,6 +1,8 @@
 import spade
 from spade.behaviour import OneShotBehaviour
 
+from behaviours import PrepararPedido, template
+
 class Atendente(spade.agent.Agent):
 
     def __init__(self, jid, password, bar_jid):
@@ -18,16 +20,18 @@ class Atendente(spade.agent.Agent):
             nota = 3
             msg = spade.message.Message(to=self.agent.bar_jid)
             msg.set_metadata("performative", "inform")
+            msg.set_metadata("ontology", "avaliacao")
             msg.body = "atendimento:" + str(nota)
 
             await self.send(msg)
             print(f"[Atendente] enviei nota {nota} para o bar {self.agent.bar_jid}")
-    
-    
+
+
     async def setup(self):
         print(f"Hello! Atendente agent {self.jid} is starting...")
         print(f"Atendente is serving bar agent {self.bar_jid}")
         print(f"Atendente {'is' if self.is_serving else 'is not'} currently serving.")
         self.add_behaviour(self.DarNota())
-        self.add_behaviour(self.Encerrar())
+        # o atendente precisa continuar vivo para preparar pedidos, por isso não se encerra mais
+        self.add_behaviour(PrepararPedido(), template("request", "preparar"))
 

@@ -1,2 +1,3 @@
 from .Bar import Bar
 from .Atendente import Atendente
+from .Faxineira import Faxineira

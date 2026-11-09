@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="2">
+  <title>Painel dos Bares</title>
+</head>
+<body>
+  <h1>Painel dos Bares</h1>
+  {% if relogio.encerrado() %}
+  <p><b>Simulação encerrada</b> após {{ "%.0f"|format(relogio.dias_passados()) }} dias simulados
+     (resultado final; agentes parados)</p>
+  {% elif relogio.rodando() %}
+  <p><b>Dia {{ relogio.dia_atual() }}, {{ "%02d"|format(relogio.hora_do_dia()) }}h · Semana {{ relogio.semana_atual() }}</b>
+     (escala: 1 dia = {{ relogio.escala() }} s reais)</p>
+  {% else %}
+  <p><b>Simulação ainda não começou</b> (subindo os agentes...)</p>
+  {% endif %}
+
+  <h2>Resumo</h2>
+  <table border="1">
+    <tr><th>Bar</th><th>Aberto</th><th>Nota geral</th><th>Limpeza (real)</th><th>Clientes</th><th>Atendentes</th><th>Faxineiras</th><th>Fila</th><th>Em preparo</th><th>Entregues</th><th>Espera média (min)</th></tr>
+    {% for bar in bares %}
+    <tr>
+      <td>{{ bar.jid }}</td>
+      <td>{{ "sim" if bar.is_open else "não" }}</td>
+      <td>{{ "%.2f"|format(bar.nota_geral) }}</td>
+      <td>{{ "%.1f"|format(bar.nivel_limpeza) }}</td>
+      <td>{{ bar.clientes|length }}/{{ bar.lotacao_maxima }}</td>
+      <td>{{ bar.atendentes|length }}</td>
+      <td>{{ bar.faxineiras|length }}</td>
+      <td>{{ bar.fila_pedidos|length }}</td>
+      <td>{{ bar.pedidos_em_preparo|length }}</td>
+      <td>{{ bar.tempos_espera|length }}</td>
+      <td>{{ "%.1f"|format(bar.espera_media) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="11">nenhum bar iniciado ainda</td></tr>
+    {% endfor %}
+  </table>
+
+  {% for bar in bares %}
+  <h2>{{ bar.jid }}</h2>
+
+  <table border="1">
+    <tr><th>Critério</th><th>Média</th><th>Nº de avaliações</th><th>Avaliações</th></tr>
+    {% for criterio, media in bar.pontuacao.items() %}
+    <tr>
+      <td>{{ criterio }}</td>
+      <td>{{ "%.2f"|format(media) }}</td>
+      <td>{{ bar.avaliacoes[criterio]|length }}</td>
+      <td>{{ bar.avaliacoes[criterio]|join(", ") }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <br>
+  <table border="1">
+    <tr><th>Atendente</th><th>Vivo</th><th>Servindo</th></tr>
+    {% for a in bar.atendentes %}
+    <tr>
+      <td>{{ a.jid }}</td>
+      <td>{{ "sim" if a.is_alive() else "não" }}</td>
+      <td>{{ "sim" if a.is_serving else "não" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3">nenhum atendente</td></tr>
+    {% endfor %}
+  </table>
+  <br>
+  <table border="1">
+    <tr><th>Faxineira</th><th>Vivo</th><th>Limpando</th><th>Chamada pelo bar</th></tr>
+    {% for f in bar.faxineiras %}
+    <tr>
+      <td>{{ f.jid }}</td>
+      <td>{{ "sim" if f.is_alive() else "não" }}</td>
+      <td>{{ "sim" if f.ocupada else "não" }}</td>
+      <td>{{ "sim" if (f.jid|string) in bar.chamados_pendentes else "não" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">nenhuma faxineira</td></tr>
+    {% endfor %}
+  </table>
+  <br>
+  <table border="1">
+    <tr><th>Pedido</th><th>Cliente</th><th>Item</th><th>Preço</th><th>Situação</th><th>Atendente</th></tr>
+    {% for p in bar.pedidos_em_preparo.values() %}
+    <tr><td>#{{ p.pedido_id }}</td><td>{{ p.cliente }}</td><td>{{ p.item }}</td><td>{{ p.preco }}</td><td>em preparo</td><td>{{ p.atendente }}</td></tr>
+    {% endfor %}
+    {% for p in bar.fila_pedidos %}
+    <tr><td>#{{ p.pedido_id }}</td><td>{{ p.cliente }}</td><td>{{ p.item }}</td><td>{{ p.preco }}</td><td>na fila</td><td>-</td></tr>
+    {% endfor %}
+    {% if not bar.pedidos_em_preparo and not bar.fila_pedidos %}
+    <tr><td colspan="6">nenhum pedido pendente</td></tr>
+    {% endif %}
+  </table>
+  {% endfor %}
+</body>
+</html>

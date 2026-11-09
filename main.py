@@ -1,11 +1,61 @@
-from agents import Bar
+import argparse
+import asyncio
+
 import spade
 
-async def main():
-    bar_agent = Bar("bar@localhost", "senha")
-    await bar_agent.start(auto_register=True)
-    await spade.wait_until_finished(bar_agent)
+import relogio
+from agents import Bar
+from rotas import iniciar_painel
+
+NUM_BARES = 3
+
+
+def ler_argumentos():
+    p = argparse.ArgumentParser(description="Simulação de bares (SPADE)")
+    p.add_argument("--dia", type=float, default=relogio.SEGUNDOS_REAIS_POR_DIA,
+                   help="segundos reais por dia simulado (padrão: %(default)s; 2 = mês em 1 min)")
+    p.add_argument("--dias", type=int, default=relogio.DIAS_SIMULACAO,
+                   help="quantos dias simulados a simulação dura (padrão: %(default)s)")
+    p.add_argument("--sair-ao-fim", action="store_true",
+                   help="encerra o programa no fim da simulação (padrão: mantém o painel no ar)")
+    return p.parse_args()
+
+
+async def main(dias_simulacao, sair_ao_fim=False):
+    bares = []
+    # o painel sobe primeiro e mostra os bares conforme eles vão entrando na lista
+    painel = await iniciar_painel(bares)
+
+    try:
+        for i in range(1, NUM_BARES + 1):
+            # nº de atendentes é sorteado dentro do Bar
+            bar = Bar(f"bar{i}@localhost", "senha")
+            await bar.start(auto_register=True)
+            bares.append(bar)
+
+        # o relógio só começa quando todos os agentes já estão no ar
+        relogio.iniciar()
+        print(f"[Simulação] começou: {dias_simulacao} dias, 1 dia = {relogio.escala():g}s "
+              f"(termina em ~{relogio.dias(dias_simulacao) / 60:.1f} min reais)")
+
+        while relogio.dias_passados() < dias_simulacao and any(b.is_alive() for b in bares):
+            await asyncio.sleep(min(1.0, relogio.dias(0.25)))
+
+        relogio.encerrar()
+        print(f"[Simulação] fim: {dias_simulacao} dias simulados")
+        await asyncio.gather(*(b.stop() for b in bares if b.is_alive()))
+
+        if not sair_ao_fim:
+            # agentes parados, mas o painel continua mostrando o estado final
+            print("[Painel] continua no ar com o resultado final: http://127.0.0.1:10000/painel "
+                  "(Ctrl+C para sair)")
+            await asyncio.Event().wait()
+    finally:
+        await asyncio.gather(*(b.stop() for b in bares if b.is_alive()))
+        await painel.cleanup()
 
 
 if __name__ == "__main__":
-    spade.run(main(), embedded_xmpp_server=True)
+    args = ler_argumentos()
+    relogio.configurar(args.dia)
+    spade.run(main(args.dias, args.sair_ao_fim), embedded_xmpp_server=True)
