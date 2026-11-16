@@ -19,12 +19,13 @@
 
   <h2>Resumo</h2>
   <table border="1">
-    <tr><th>Bar</th><th>Aberto</th><th>Nota geral</th><th>Limpeza (real)</th><th>Clientes</th><th>Atendentes</th><th>Faxineiras</th><th>Fila</th><th>Em preparo</th><th>Entregues</th><th>Espera média (min)</th></tr>
+    <tr><th>Bar</th><th>Aberto</th><th>Nota geral</th><th>Reputação (nebulosa)</th><th>Limpeza (real)</th><th>Clientes</th><th>Atendentes</th><th>Faxineiras</th><th>Fila</th><th>Em preparo</th><th>Entregues</th><th>Espera média (min)</th><th>Faturamento (R$)</th></tr>
     {% for bar in bares %}
     <tr>
       <td>{{ bar.jid }}</td>
       <td>{{ "sim" if bar.is_open else "não" }}</td>
       <td>{{ "%.2f"|format(bar.nota_geral) }}</td>
+      <td>{{ "%.2f"|format(bar.reputacao) }}</td>
       <td>{{ "%.1f"|format(bar.nivel_limpeza) }}</td>
       <td>{{ bar.clientes|length }}/{{ bar.lotacao_maxima }}</td>
       <td>{{ bar.atendentes|length }}</td>
@@ -33,9 +34,10 @@
       <td>{{ bar.pedidos_em_preparo|length }}</td>
       <td>{{ bar.tempos_espera|length }}</td>
       <td>{{ "%.1f"|format(bar.espera_media) }}</td>
+      <td>{{ bar.faturamento }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="11">nenhum bar iniciado ainda</td></tr>
+    <tr><td colspan="13">nenhum bar iniciado ainda</td></tr>
     {% endfor %}
   </table>
 

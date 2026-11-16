@@ -172,6 +172,7 @@ class ReceberPedidoPronto(CyclicBehaviour):
         # medido em segundos reais, guardado em minutos simulados (vale para qualquer escala)
         espera = relogio.real_para_minutos(time.monotonic() - pedido["feito_em"])
         bar.tempos_espera.append(espera)
+        bar.faturamento += pedido["preco"]
         print(f"[{bar.jid.user}] pedido #{pedido_id} entregue em {espera:.0f} min "
               f"(média: {bar.espera_media:.0f} min)")
         await distribuir(self)  # atendente ficou livre: pega o próximo da fila

@@ -7,7 +7,7 @@ class ReceberEntrada(CyclicBehaviour):
     """Behaviour do Bar: cliente pede para entrar.
 
     Recebe:   request / entrar   (body vazio)
-    Responde: agree  / entrar   {"clientes": n, "lotacao_maxima": m}
+    Responde: agree  / entrar   {"clientes": n, "lotacao_maxima": m, "limpeza": 0-10}
               refuse / entrar   {"motivo": "fechado" | "lotado"}
     """
 
@@ -33,6 +33,7 @@ class ReceberEntrada(CyclicBehaviour):
         await responder(self, msg, "agree", {
             "clientes": len(bar.clientes),
             "lotacao_maxima": bar.lotacao_maxima,
+            "limpeza": round(bar.nivel_limpeza, 1),  # o cliente vê o estado do bar ao entrar
         })
         print(f"[{bar.jid.user}] {msg.sender.user} entrou ({len(bar.clientes)}/{bar.lotacao_maxima})")
 

@@ -4,10 +4,11 @@ import asyncio
 import spade
 
 import relogio
-from agents import Bar
+from agents import AgenteCliente, Bar
 from rotas import iniciar_painel
 
 NUM_BARES = 3
+PERFIS_CLIENTES = ["universitario"] * 10 + ["ponderado"] * 10
 
 
 def ler_argumentos():
@@ -23,6 +24,7 @@ def ler_argumentos():
 
 async def main(dias_simulacao, sair_ao_fim=False):
     bares = []
+    clientes = []
     # o painel sobe primeiro e mostra os bares conforme eles vão entrando na lista
     painel = await iniciar_painel(bares)
 
@@ -32,6 +34,12 @@ async def main(dias_simulacao, sair_ao_fim=False):
             bar = Bar(f"bar{i}@localhost", "senha")
             await bar.start(auto_register=True)
             bares.append(bar)
+
+        jids_bares = [str(b.jid) for b in bares]
+        for i, perfil in enumerate(PERFIS_CLIENTES, start=1):
+            cliente = AgenteCliente(f"cliente{i}@localhost", "senha", "asl/cliente.asl", jids_bares, perfil)
+            await cliente.start(auto_register=True)
+            clientes.append(cliente)
 
         # o relógio só começa quando todos os agentes já estão no ar
         relogio.iniciar()
@@ -43,7 +51,9 @@ async def main(dias_simulacao, sair_ao_fim=False):
 
         relogio.encerrar()
         print(f"[Simulação] fim: {dias_simulacao} dias simulados")
-        await asyncio.gather(*(b.stop() for b in bares if b.is_alive()))
+        for b in bares:
+            print(f"[Simulação] {b.jid.user}: faturamento final R$ {b.faturamento}")
+        await asyncio.gather(*(a.stop() for a in clientes + bares if a.is_alive()))
 
         if not sair_ao_fim:
             # agentes parados, mas o painel continua mostrando o estado final
@@ -51,7 +61,7 @@ async def main(dias_simulacao, sair_ao_fim=False):
                   "(Ctrl+C para sair)")
             await asyncio.Event().wait()
     finally:
-        await asyncio.gather(*(b.stop() for b in bares if b.is_alive()))
+        await asyncio.gather(*(a.stop() for a in clientes + bares if a.is_alive()))
         await painel.cleanup()
 
 

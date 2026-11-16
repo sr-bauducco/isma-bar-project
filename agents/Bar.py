@@ -4,6 +4,7 @@ import random
 from collections import deque
 
 import spade
+import estrategia_bar
 from agents.Atendente import Atendente
 from agents.Faxineira import Faxineira
 from behaviours import (
@@ -18,7 +19,7 @@ from spade.behaviour import OneShotBehaviour, CyclicBehaviour
 MIN_ATENDENTES = 1
 MAX_ATENDENTES = 4
 NUM_FAXINEIRAS = 1
-LOTACAO_MAXIMA = 20
+LOTACAO_MAXIMA = 10
 CARDAPIO = {  # item -> preço
     "cerveja": 12,
     "refrigerante": 6,
@@ -41,7 +42,8 @@ class Bar(spade.agent.Agent):
         self.fila_pedidos = deque()    
         self.pedidos_em_preparo = {}   
         self.proximo_pedido_id = itertools.count(1)
-        self.tempos_espera = []       
+        self.tempos_espera = []
+        self.faturamento = 0  # R$ dos pedidos entregues
         self.is_open = True
         self.nivel_limpeza = 10.0
         self.pontuacao = {
@@ -51,6 +53,7 @@ class Bar(spade.agent.Agent):
             "preco": 10
         }
         self.avaliacoes = {criterio: [] for criterio in self.pontuacao}
+        self.reputacao = 5.0  # satisfação nebulosa dos clientes (EMA de alfa nebuloso)
 
     @property
     def nota_geral(self):
@@ -70,10 +73,13 @@ class Bar(spade.agent.Agent):
 
 
     def registrar_nota(self, criterio, nota):
-        if criterio not in self.avaliacoes:
-            raise ValueError(f"critério inválido: {criterio}")
         if not 0 <= nota <= 10:
             raise ValueError("nota deve estar entre 0 e 10")
+        if criterio == "satisfacao":  # nota geral nebulosa do cliente (avaliacao.avaliar)
+            self.reputacao = estrategia_bar.fuzzy_reputacao(nota, self.reputacao)
+            return self.reputacao
+        if criterio not in self.avaliacoes:
+            raise ValueError(f"critério inválido: {criterio}")
         self.avaliacoes[criterio].append(nota)
         notas = self.avaliacoes[criterio]
         self.pontuacao[criterio] = sum(notas) / len(notas)
@@ -94,7 +100,7 @@ class Bar(spade.agent.Agent):
                 try:
                     avaliacao = msg.body.split(":")
                     criterio = avaliacao[0]
-                    nota = int(avaliacao[1])
+                    nota = float(avaliacao[1])
                     media = self.agent.registrar_nota(criterio, nota)
                     print(f"[{nome}] recebi avaliacao: {criterio} = {nota} (média: {media:.2f})")
                 except Exception as e:
