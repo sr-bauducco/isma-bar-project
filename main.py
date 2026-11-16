@@ -8,7 +8,7 @@ from agents import AgenteCliente, Bar
 from rotas import iniciar_painel
 
 NUM_BARES = 3
-PERFIS_CLIENTES = ["universitario"] * 10 + ["ponderado"] * 10
+PERFIS_CLIENTES = ["universitario"] * 50 + ["ponderado"] * 50
 
 
 def ler_argumentos():

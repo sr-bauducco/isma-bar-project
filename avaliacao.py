@@ -24,7 +24,7 @@ SATISFACAO = Variavel({
     "otima":   lambda x: trap(x, 7.5, 9, 10, 10),
 })
 
-# Universitário: só o preço importa (maior = mais barato).
+# Universitário: o preço manda (maior = mais barato).
 REGRAS_UNIVERSITARIO = [
     Regra({"preco": "alto"}, "otima"),
     Regra({"preco": "medio"}, "regular"),
@@ -44,18 +44,32 @@ REGRAS_PONDERADO = [
     Regra({"preco": "baixo", "temperatura": "baixo"}, "ruim"),
 ]
 
+# Limpeza: vale para todo perfil, mas pesa menos que o preço (PESO_LIMPEZA < 1
+# limita a ativação dessas regras no Mamdani).
+PESO_LIMPEZA = 0.3
+REGRAS_LIMPEZA = [
+    Regra({"limpeza": "alto"}, "otima"),
+    Regra({"limpeza": "medio"}, "regular"),
+    Regra({"limpeza": "baixo"}, "ruim"),
+]
+
+
+def _peso(regra):
+    return PESO_LIMPEZA if regra in REGRAS_LIMPEZA else 1.0
+
+
 # peso_reputacao: quanto a reputação publicada do bar pesa na ESCOLHA (o resto é a
 # percepção nebulosa dos atributos).
 PERFIS = {
-    "universitario": {"regras": REGRAS_UNIVERSITARIO, "peso_reputacao": 0.1},
-    "ponderado":     {"regras": REGRAS_PONDERADO,     "peso_reputacao": 0.3},
+    "universitario": {"regras": REGRAS_UNIVERSITARIO + REGRAS_LIMPEZA, "peso_reputacao": 0.1},
+    "ponderado":     {"regras": REGRAS_PONDERADO + REGRAS_LIMPEZA,     "peso_reputacao": 0.3},
 }
 
 
 def avaliar(attrs, perfil):
     """Satisfação nebulosa -> (nota 0-10, rótulo, graus por rótulo)."""
     graus = {v: ENTRADA.fuzzificar(max(0.0, min(10.0, attrs[v]))) for v in ATRIBUTOS}
-    nota, ativ = inferir_mamdani(PERFIS[perfil]["regras"], graus, SATISFACAO)
+    nota, ativ = inferir_mamdani(PERFIS[perfil]["regras"], graus, SATISFACAO, peso=_peso)
     rotulo, _ = SATISFACAO.rotular(nota)
     return nota, rotulo, ativ
 

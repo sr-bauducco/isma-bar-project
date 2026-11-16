@@ -13,8 +13,8 @@ import relogio
 from behaviours import ler_json
 
 # VALORES PADROES DO CLIENTE (em tempo simulado)
-INTERVALO_VISITA_HORAS = (2, 8)   # descanso entre uma visita e a próxima (sorteado)
-ESPERA_MAXIMA_HORAS = 2           # desiste do pedido depois disso
+INTERVALO_VISITA_HORAS = (2, 16)   # descanso entre uma visita e a próxima (sorteado)
+ESPERA_MAXIMA_HORAS = 0.2           # desiste do pedido depois disso
 MINUTOS_POR_PONTO = 6             # cada 6 min de espera tira 1 ponto do atendimento
 REAIS_POR_PONTO = 3               # cada R$ 3 tira 1 ponto do preço (maior nota = mais barato)
 TIMEOUT_RESPOSTA = 5              # s reais esperando resposta do bar (polling, não escala)

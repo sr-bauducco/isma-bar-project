@@ -133,3 +133,46 @@ dados = json.loads(resp.body)                 # {"pedido_id": 1, "preco": 12, ..
 ```
 
 ---
+
+## Variação de preço
+
+A cada 6 s (`PERIODO_ESTRATEGIA` em [agents/AgenteBar.py](agents/AgenteBar.py)) cada bar revisa o próprio preço com lógica nebulosa (Sugeno). O preço é um **score de 0 a 10, não reais**, e a escala é invertida: **maior = mais barato**.
+
+1. **Entradas** (0 a 10):
+   - `reputacao`: média móvel das notas dos clientes.
+   - `fluxo`: `5 × visitas do bar / média de visitas dos bares`, com teto em 10 (5 = igual à média). Usa as visitas acumuladas, então reage devagar no fim da simulação.
+2. **Fuzzificação** (`NIVEL` em [estrategia_bar.py](estrategia_bar.py)): cada entrada ganha um grau de 0 a 1 em `baixo` (vale 1 até 2.5, cai a 0 em 5), `medio` (triângulo com pico em 5) e `alto` (sobe a partir de 5, vale 1 de 7.5 em diante).
+3. **Regras** (`REGRAS_PRECO`): a força de cada regra é o mínimo dos dois graus, e o delta é a média das saídas ponderada pelas forças: `delta = Σ(força × saída) / Σ(força)`.
+4. **Aplicação** (`ajustar_preco` em [environment.py](environment.py)): `preco = preco + 0.3 × delta`, limitado a `preco_base ± LIMITE_PRECO` (3 pontos) e depois a 0–10.
+
+Saída de cada regra (positivo = ficar mais barato):
+
+| reputação \ fluxo | baixo | medio | alto |
+|---|---|---|---|
+| **baixo** | +1.0 | +0.4 | 0.0 |
+| **medio** | +0.6 | 0.0 | −0.3 |
+| **alto** | +0.3 | −0.3 | −0.8 |
+
+O delta fica entre −0.8 e +1.0, então cada revisão move o score entre **−0.24 e +0.30**. Bar vazio faz promoção; bar cheio e bem avaliado encarece.
+
+### Exemplo: reputação 6, fluxo 3.5
+
+Reputação 6 → `medio` 0.6, `alto` 0.4. Fluxo 3.5 → `baixo` 0.6, `medio` 0.4.
+
+| Regra (reputação / fluxo) | Força | Saída | Força × saída |
+|---|---|---|---|
+| medio / baixo | 0.6 | +0.6 | +0.36 |
+| medio / medio | 0.4 | 0.0 | 0.00 |
+| alto / baixo | 0.4 | +0.3 | +0.12 |
+| alto / medio | 0.4 | −0.3 | −0.12 |
+| **Soma** | **1.8** | | **+0.36** |
+
+`delta = 0.36 / 1.8 = +0.2`, passo aplicado `0.3 × 0.2 = +0.06`: o bar fica um pouco mais barato porque está com pouco movimento.
+
+### Faixa de cada bar
+
+| Bar | Base | Faixa possível |
+|---|---|---|
+| bar1_premium | 3.0 | 0.0 a 6.0 |
+| bar2_coposujo | 9.5 | 6.5 a 10.0 |
+| bar3_modinha | 5.0 | 2.0 a 8.0 |
