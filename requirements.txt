@@ -1,2 +1,2 @@
-spade==4.1.4
-spade_bdi <= 0
+spade==3.3.3
+spade-bdi==0.3.1

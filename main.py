@@ -1,32 +1,43 @@
 import asyncio
-import spade
-from src.agents.client_agent import ClientAgent
-from src.agents.bar_agent import BarAgent # Novo import
+import os
+
+import environment
+from agents.Bar import AgenteBar
+from agents.Cliente import AgenteCliente
+
+SENHA = os.getenv("XMPP_SENHA", "senha123")
+DURACAO = int(os.getenv("DURACAO", "120"))  # segundos de simulação
+# As contas são criadas por scripts/criar_contas.sh; use AUTO_REGISTER=1 só se preferir registro in-band.
+AUTO_REGISTER = os.getenv("AUTO_REGISTER", "0") == "1"
+
+PERFIS_CLIENTES = ["universitario"] * 3 + ["ponderado"] * 3
+
 
 async def main():
-    # Coloque suas senhas reais do xmpp.jp aqui
-    cliente = ClientAgent("cliente_teste_unb@xmpp.jp", "Senh@123", "asl/client.asl")
-    bar1 = BarAgent("bar1_unb@xmpp.jp", "Senh@123", "asl/bar.asl")
-    
-    print("=========================================")
-    print("[TESTADOR] Iniciando ecossistema de agentes...")
-    
+    print("Iniciando Simulação Multiagente Híbrida - ISMA Bar Project")
+    agentes = []
+
+    for jid_bar in environment.REGISTRO_BARES:
+        bar = AgenteBar(jid_bar, SENHA, "asl/bar.asl")
+        await bar.start(auto_register=AUTO_REGISTER)
+        agentes.append(bar)
+
+    for i, perfil in enumerate(PERFIS_CLIENTES, start=1):
+        cli = AgenteCliente(environment.jid(f"cliente{i}"), SENHA, "asl/cliente.asl", perfil)
+        await cli.start(auto_register=AUTO_REGISTER)
+        agentes.append(cli)
+
+    print(f"Agentes online. Simulação por {DURACAO}s (Ctrl+C para encerrar antes).")
     try:
-        # Iniciamos o Bar primeiro, para garantir que ele esteja de portas abertas
-        await bar1.start()
-        # Depois iniciamos o Cliente, que vai escolher onde ir
-        await cliente.start()
-        
-        print("[TESTADOR] SUCESSO: Ambos os agentes conectados!\n")
-        
-        await asyncio.sleep(5)
-        
-    except Exception as e:
-        print(f"\n[TESTADOR] FALHA CRÍTICA ENCONTRADA: {e}\n")
+        await asyncio.sleep(DURACAO)
     finally:
-        print("\n[TESTADOR] Encerrando simulação...")
-        await cliente.stop()
-        await bar1.stop()
+        for a in agentes:
+            await a.stop()
+        print(environment.resumo())
+
 
 if __name__ == "__main__":
-    spade.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nEncerrando simulação...")
