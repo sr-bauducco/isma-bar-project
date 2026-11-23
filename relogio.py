@@ -11,6 +11,7 @@ import time
 # VALORES PADROES DO RELOGIO
 SEGUNDOS_REAIS_POR_DIA = 60   # 1 dia simulado = 60 s reais -> 1 semana = 7 min, 1 mês = 30 min
 DIAS_SIMULACAO = 30           # duração da simulação
+HORA_INICIAL = 18             # a simulação começa nessa hora do dia 1 (início do horário de pico)
 PERIODO_MINIMO = 0.1          # nenhum behaviour periódico roda mais rápido que isso (s reais)
 
 _segundos_por_dia = SEGUNDOS_REAIS_POR_DIA
@@ -29,7 +30,7 @@ def configurar(segundos_por_dia):
 def iniciar():
     """Começa a contar o tempo (chamar depois que todos os agentes subirem)."""
     global _inicio
-    _inicio = time.monotonic()
+    _inicio = time.monotonic() - horas(HORA_INICIAL)  # o relógio já nasce em HORA_INICIAL
 
 
 def encerrar():
@@ -78,7 +79,8 @@ def real_para_minutos(segundos_reais):
 # ---- onde estamos na simulação ----
 
 def dias_passados():
-    """Dias simulados desde iniciar() (float). 0 se o relógio ainda não começou."""
+    """Dias simulados desde a meia-noite do dia 1 (float; já começa em HORA_INICIAL/24).
+    0 se o relógio ainda não começou."""
     if _inicio is None:
         return 0.0
     agora = _fim if _fim is not None else time.monotonic()

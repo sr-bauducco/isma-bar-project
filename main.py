@@ -26,7 +26,7 @@ async def main(dias_simulacao, sair_ao_fim=False):
     bares = []
     clientes = []
     # o painel sobe primeiro e mostra os bares conforme eles vão entrando na lista
-    painel = await iniciar_painel(bares)
+    painel = await iniciar_painel(bares, clientes)
 
     try:
         for i in range(1, NUM_BARES + 1):
@@ -36,6 +36,8 @@ async def main(dias_simulacao, sair_ao_fim=False):
             bares.append(bar)
 
         jids_bares = [str(b.jid) for b in bares]
+        for b in bares:  # cada bar conhece os outros para comparar preços na revisão semanal
+            b.concorrentes = [j for j in jids_bares if j != str(b.jid)]
         for i, perfil in enumerate(PERFIS_CLIENTES, start=1):
             cliente = AgenteCliente(f"cliente{i}@localhost", "senha", "asl/cliente.asl", jids_bares, perfil)
             await cliente.start(auto_register=True)
@@ -46,10 +48,13 @@ async def main(dias_simulacao, sair_ao_fim=False):
         print(f"[Simulação] começou: {dias_simulacao} dias, 1 dia = {relogio.escala():g}s "
               f"(termina em ~{relogio.dias(dias_simulacao) / 60:.1f} min reais)")
 
-        while relogio.dias_passados() < dias_simulacao and any(b.is_alive() for b in bares):
+        fim = dias_simulacao + relogio.HORA_INICIAL / 24  # o relógio não começa do zero
+        while relogio.dias_passados() < fim and any(b.is_alive() for b in bares):
             await asyncio.sleep(min(1.0, relogio.dias(0.25)))
 
         relogio.encerrar()
+        for b in bares:
+            b.revisao.fechar_semana_parcial()  # a última semana (incompleta) também entra no relatório
         print(f"[Simulação] fim: {dias_simulacao} dias simulados")
         for b in bares:
             print(f"[Simulação] {b.jid.user}: faturamento final R$ {b.faturamento}")

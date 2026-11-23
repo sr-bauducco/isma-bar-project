@@ -11,8 +11,10 @@ from behaviours import (
     Sujar, VigiarLimpeza, ResponderAvaliacao,
     ReceberEntrada, ReceberSaida,
     ReceberPedido, DistribuirPedidos, ReceberPedidoPronto,
+    RevisarSemana, ResponderPrecos,
     template,
 )
+from behaviours.gestao import FATOR_PRECO_MAX, FATOR_PRECO_MIN
 from spade.behaviour import OneShotBehaviour, CyclicBehaviour
 
 # VALORES PADROES PARA O BAR
@@ -44,6 +46,12 @@ class Bar(spade.agent.Agent):
         self.proximo_pedido_id = itertools.count(1)
         self.tempos_espera = []
         self.faturamento = 0  # R$ dos pedidos entregues
+        self.concorrentes = []         # JIDs dos outros bares (preenchido pelo main.py)
+        self.fila_entrada = deque()    # JIDs esperando vaga na porta, em ordem de chegada
+        self.recusas_lotado = 0        # clientes que chegaram com o bar lotado (total)
+        self.fator_preco = 1.0         # preço atual / preço base do cardápio
+        self.tendencia_preco = 0       # última revisão semanal: -1 baixou, 0 manteve, +1 subiu
+        self.decisoes = []             # relatório semanal: números de cada semana + "acao" (RevisarSemana)
         self.is_open = True
         self.nivel_limpeza = 10.0
         self.pontuacao = {
@@ -71,6 +79,21 @@ class Bar(spade.agent.Agent):
         """Espera média dos pedidos, em minutos simulados."""
         return sum(self.tempos_espera) / len(self.tempos_espera) if self.tempos_espera else 0.0
 
+
+    async def contratar_atendente(self):
+        """Cria e inicia mais um atendente: bar1 -> bar1_atendente<N+1>."""
+        i = len(self.atendentes) + 1
+        atendente = Atendente(f"{self.jid.user}_atendente{i}@{self.jid.domain}", "senha", str(self.jid))
+        await atendente.start(auto_register=True)
+        self.atendentes.append(atendente)
+        return atendente
+
+    def ajustar_preco(self, passo):
+        """Muda o cardápio inteiro em `passo` do preço base (ex.: -0.10 = 10% mais barato)."""
+        novo = max(FATOR_PRECO_MIN, min(FATOR_PRECO_MAX, round(self.fator_preco + passo, 2)))
+        self.tendencia_preco = (novo > self.fator_preco) - (novo < self.fator_preco)
+        self.fator_preco = novo
+        self.cardapio = {item: round(preco * novo, 2) for item, preco in CARDAPIO.items()}
 
     def registrar_nota(self, criterio, nota):
         if not 0 <= nota <= 10:
@@ -141,16 +164,16 @@ class Bar(spade.agent.Agent):
         self.add_behaviour(DistribuirPedidos())
         self.add_behaviour(Sujar())
         self.add_behaviour(VigiarLimpeza())
+        self.add_behaviour(ResponderPrecos(), template("query-ref", "precos"))
+        self.revisao = RevisarSemana()  # o main.py usa para fechar a última semana no relatório
+        self.add_behaviour(self.revisao, template("inform", "precos"))
 
 
         # Cada bar nasce com seus próprios
         #  atendentes: bar1 -> bar1_atendente1..N
         print(f"[{self.jid.user}] criando {self.num_atendentes} atendente(s)")
-        for i in range(1, self.num_atendentes + 1):
-            atendente_jid = f"{self.jid.user}_atendente{i}@{self.jid.domain}"
-            atendente = Atendente(atendente_jid, "senha", str(self.jid))
-            await atendente.start(auto_register=True)
-            self.atendentes.append(atendente)
+        for _ in range(self.num_atendentes):
+            await self.contratar_atendente()
 
         #  faxineiras: bar1 -> bar1_faxineira1..N
         print(f"[{self.jid.user}] criando {self.num_faxineiras} faxineira(s)")

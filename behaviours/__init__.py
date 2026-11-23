@@ -3,4 +3,5 @@ from .sujar import Sujar
 from .vigiar_limpeza import VigiarLimpeza
 from .responder_avaliacao import ResponderAvaliacao
 from .entrada import ReceberEntrada, ReceberSaida
+from .gestao import RevisarSemana, ResponderPrecos
 from .pedidos import ReceberPedido, DistribuirPedidos, PrepararPedido, ReceberPedidoPronto

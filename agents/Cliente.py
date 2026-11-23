@@ -14,7 +14,12 @@ from behaviours import ler_json
 
 # VALORES PADROES DO CLIENTE (em tempo simulado)
 INTERVALO_VISITA_HORAS = (2, 16)   # descanso entre uma visita e a próxima (sorteado)
-ESPERA_MAXIMA_HORAS = 0.2           # desiste do pedido depois disso
+HORARIO_PICO_HORAS = (18, 23)      # todo dia, nesse intervalo, todo cliente tenta ir a um bar
+INTERVALO_PICO_MINUTOS = (15, 60)  # durante o pico o cliente volta a tentar depois de pouco tempo
+PEDIDOS_POR_VISITA = (1, 3)        # quantos itens o cliente pede antes de ir embora (sorteado)
+TEMPO_CONSUMO_MINUTOS = (20, 40)   # tempo que ele leva consumindo cada item (sorteado)
+PACIENCIA_FILA_MINUTOS = 45        # quanto espera na fila da porta antes de desistir
+ESPERA_MAXIMA_HORAS = 1             # desiste do pedido depois disso
 MINUTOS_POR_PONTO = 6             # cada 6 min de espera tira 1 ponto do atendimento
 REAIS_POR_PONTO = 3               # cada R$ 3 tira 1 ponto do preço (maior nota = mais barato)
 TIMEOUT_RESPOSTA = 5              # s reais esperando resposta do bar (polling, não escala)
@@ -24,8 +29,28 @@ def _nota(valor):
     return max(0.0, min(10.0, valor))
 
 
+def horas_ate_proxima_visita(agora, rng=random):
+    """Descanso (horas simuladas) a partir da hora absoluta `agora` (horas desde o início).
+
+    Fora do pico sorteia o descanso normal, mas o cliente nunca pula um horário de pico: se o
+    descanso passaria do fim do próximo pico, ele vai num momento sorteado dentro desse pico.
+    Durante o pico o descanso é curto: quem foi recusado (lotado) ou já consumiu tenta de novo.
+    """
+    meia_noite = agora - agora % 24
+    inicio, fim = (meia_noite + h for h in HORARIO_PICO_HORAS)
+    if inicio <= agora < fim:
+        return rng.uniform(*INTERVALO_PICO_MINUTOS) / 60
+    descanso = rng.uniform(*INTERVALO_VISITA_HORAS)
+    if agora >= inicio:  # o pico de hoje já foi (ou a visita de agora já conta): mira o de amanhã
+        inicio, fim = inicio + 24, fim + 24
+    if agora + descanso > fim:
+        descanso = rng.uniform(inicio, fim) - agora
+    return descanso
+
+
 class IrAoBarBehaviour(CyclicBehaviour):
-    """Cada rodada: consulta os bares, escolhe um, entra, pede, avalia e sai."""
+    """Cada rodada: consulta os bares, escolhe um, entra, pede e consome alguns itens
+    (avaliando cada um) e sai."""
 
     async def on_start(self):
         self.rodada = 0
@@ -85,18 +110,29 @@ class IrAoBarBehaviour(CyclicBehaviour):
 
         await self.pedir(escolhido, "request", "entrar")
         resp = await self.esperar("entrar", escolhido)
+        na_fila = resp is not None and resp.get_metadata("performative") == "inform"
+        if na_fila:
+            # bar lotado: espera na porta até abrir vaga (agree) ou perder a paciência
+            print(f"[{nome}] {escolhido} lotado, fila da porta: posição {ler_json(resp).get('posicao')}")
+            resp = await self.esperar("entrar", escolhido, timeout=relogio.minutos(PACIENCIA_FILA_MINUTOS))
+            if resp is None:
+                await self.pedir(escolhido, "inform", "sair")  # sai da fila
         if resp is None or resp.get_metadata("performative") != "agree":
-            motivo = ler_json(resp).get("motivo") if resp else "sem resposta"
+            motivo = ler_json(resp).get("motivo") if resp else "cansei da fila" if na_fila else "sem resposta"
             print(f"[{nome}] não entrei em {escolhido}: {motivo}")
         else:
             limpeza = ler_json(resp).get("limpeza", bares[escolhido]["limpeza"])
-            await self.consumir(escolhido, limpeza, bares[escolhido]["decoracao"])
+            for _ in range(random.randint(*PEDIDOS_POR_VISITA)):
+                if not await self.consumir(escolhido, limpeza, bares[escolhido]["decoracao"]):
+                    break  # pedido recusado ou cansou de esperar: vai embora
+                await asyncio.sleep(relogio.minutos(random.uniform(*TEMPO_CONSUMO_MINUTOS)))
             await self.pedir(escolhido, "inform", "sair")
 
-        await asyncio.sleep(relogio.horas(random.uniform(*INTERVALO_VISITA_HORAS)))
+        await asyncio.sleep(relogio.horas(horas_ate_proxima_visita(relogio.dias_passados() * 24)))
 
     async def consumir(self, bar, limpeza, decoracao):
-        """Pede um item, espera a entrega e manda ao bar a satisfação nebulosa + o que sentiu."""
+        """Pede um item, espera a entrega e manda ao bar a satisfação nebulosa + o que sentiu.
+        Devolve True se o item foi entregue."""
         cliente = self.agent
         nome = cliente.jid.user
         pedido_em = time.monotonic()
@@ -104,7 +140,7 @@ class IrAoBarBehaviour(CyclicBehaviour):
         resp = await self.esperar("pedido", bar)
         if resp is None or resp.get_metadata("performative") != "agree":
             print(f"[{nome}] pedido recusado em {bar}")
-            return
+            return False
         pedido = ler_json(resp)
 
         entrega = await self.esperar(
@@ -131,6 +167,7 @@ class IrAoBarBehaviour(CyclicBehaviour):
             msg.set_metadata("ontology", "avaliacao")
             msg.body = f"{criterio}:{valor:.2f}"
             await self.send(msg)
+        return bool(entrega)
 
 
 class AgenteCliente(BDIAgent):

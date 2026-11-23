@@ -1,100 +1,378 @@
 <!doctype html>
-<html>
+<html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="refresh" content="2">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Painel dos Bares</title>
+  <style>
+    :root { --luz: 0; --fundo: #14110f; --cartao: #1f1a17; --borda: #3a302a; --texto: #f3e9dc;
+            --fraco: #a39686; --ambar: #ffb347; --universitario: #4dd0e1; --ponderado: #f06292; }
+    * { box-sizing: border-box; border-radius: 0; }
+    body { margin: 0; background: var(--fundo); color: var(--texto);
+           font: 15px/1.4 system-ui, sans-serif; }
+    header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 14px 20px;
+             /* o céu clareia de dia e escurece à noite */
+             background: hsl(215 55% calc(10% + 38% * var(--luz))); transition: background 1s; }
+    h1 { margin: 0; font-size: 22px; }
+    #hora { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    #fase { color: #fff; opacity: .85; }
+    .legenda { margin-left: auto; display: flex; gap: 14px; font-size: 13px; }
+    .legenda i, .cli { display: inline-block; width: 12px; height: 12px; }
+    .universitario { background: var(--universitario); }
+    .ponderado { background: var(--ponderado); }
+
+    #cena { position: relative; padding: 16px 20px 32px; }
+    #camada { position: absolute; inset: 0; pointer-events: none; }
+    .cli { position: absolute; left: 0; top: 0; pointer-events: auto; transition: transform .35s ease; }
+
+    #bares { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .bar { background: var(--cartao); border: 1px solid var(--borda); padding: 16px; }
+    .bar h2 { margin: 0 0 12px; display: flex; justify-content: space-between; align-items: center;
+              font-size: 20px; color: var(--ambar); }
+    .placa { font-size: 11px; padding: 2px 8px; background: #2e7d32; color: #fff; }
+    .placa.fechado { background: #b71c1c; }
+    h3 { margin: 14px 0 6px; font-size: 12px; font-weight: 600; text-transform: uppercase;
+         letter-spacing: .06em; color: var(--fraco); }
+    h3 span { color: var(--texto); }
+
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; }
+    .kpis b { display: block; font-size: 17px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .kpis small { color: var(--fraco); font-size: 11px; }
+    .spark { display: block; width: 100%; height: 36px; margin-top: 8px; background: #0003; }
+    .spark polyline { fill: none; stroke: var(--ambar); stroke-width: 2; vector-effect: non-scaling-stroke; }
+
+    .salao { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px;
+             background: #0004; border: 1px dashed var(--borda); }
+    .porta { display: flex; flex-wrap: wrap; gap: 6px; min-height: 14px; }
+    .porta i { width: 14px; height: 14px; }
+    .vaga { width: 22px; height: 22px; border: 2px solid var(--borda); }
+    .balcao { display: flex; flex-wrap: wrap; gap: 8px; }
+    .atd { padding: 4px 10px; background: #0004; font-size: 13px; color: var(--fraco); }
+    .atd.ocupado { background: #ffb34733; color: var(--texto); }
+    .fila { display: flex; gap: 6px; height: 26px; overflow: hidden; }
+    .fila i { font-style: normal; font-size: 12px; padding: 3px 8px; background: #0004; }
+    .medidor { height: 8px; background: #0006; }
+    .medidor i { display: block; height: 100%; transition: width .4s, background .4s; }
+    .precos { display: grid; grid-template-columns: repeat(2, 1fr auto); gap: 2px 10px;
+              font-size: 13px; font-variant-numeric: tabular-nums; }
+    .precos span { color: var(--fraco); }
+    .precos b { text-align: right; margin-right: 10px; }
+    .subindo { color: #ef5350; }
+    .caindo { color: #66bb6a; }
+    .decisoes { margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--fraco);
+                min-height: 2.8em; }
+    button { font: inherit; color: var(--texto); background: none; border: 1px solid var(--borda);
+             padding: 6px 12px; margin-top: 14px; cursor: pointer; }
+    button:hover, button:focus-visible { border-color: var(--ambar); color: var(--ambar); }
+    dialog { background: var(--cartao); color: var(--texto); border: 1px solid var(--borda);
+             padding: 20px; max-width: min(1100px, 96vw); }
+    dialog::backdrop { background: #000a; }
+    dialog h2 { margin: 0 0 12px; color: var(--ambar); font-size: 20px; }
+    .rolagem { overflow-x: auto; }
+    dialog table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+    dialog th, dialog td { padding: 6px 10px; border: 1px solid var(--borda); text-align: right;
+                           vertical-align: top; white-space: nowrap; }
+    dialog th { color: var(--fraco); font-weight: 600; white-space: normal; }
+    dialog td:first-child, dialog th:first-child { text-align: left; }
+    dialog h3 { margin-top: 20px; }
+    header button { margin-top: 0; }
+    .texto-no-fim td:last-child, .texto-no-fim th:last-child { text-align: left; white-space: normal; min-width: 260px; }
+    dialog small { display: block; color: var(--fraco); }
+    .criterios { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 8px; align-items: center;
+                 font-size: 13px; font-variant-numeric: tabular-nums; }
+
+    #rua { margin-top: 20px; }
+    #vagas-rua { display: flex; flex-wrap: wrap; gap: 6px; min-height: 14px; }
+    #vagas-rua i { width: 14px; height: 14px; }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
 </head>
 <body>
-  <h1>Painel dos Bares</h1>
-  {% if relogio.encerrado() %}
-  <p><b>Simulação encerrada</b> após {{ "%.0f"|format(relogio.dias_passados()) }} dias simulados
-     (resultado final; agentes parados)</p>
-  {% elif relogio.rodando() %}
-  <p><b>Dia {{ relogio.dia_atual() }}, {{ "%02d"|format(relogio.hora_do_dia()) }}h · Semana {{ relogio.semana_atual() }}</b>
-     (escala: 1 dia = {{ relogio.escala() }} s reais)</p>
-  {% else %}
-  <p><b>Simulação ainda não começou</b> (subindo os agentes...)</p>
-  {% endif %}
+  <header>
+    <h1>Bar SMA</h1>
+    <span id="hora">--:--</span>
+    <span id="fase">conectando...</span>
+    <button type="button" id="btn-resumo">Resumo geral</button>
+    <div class="legenda">
+      <span><i class="universitario"></i> universitário</span>
+      <span><i class="ponderado"></i> ponderado</span>
+    </div>
+  </header>
 
-  <h2>Resumo</h2>
-  <table border="1">
-    <tr><th>Bar</th><th>Aberto</th><th>Nota geral</th><th>Reputação (nebulosa)</th><th>Limpeza (real)</th><th>Clientes</th><th>Atendentes</th><th>Faxineiras</th><th>Fila</th><th>Em preparo</th><th>Entregues</th><th>Espera média (min)</th><th>Faturamento (R$)</th></tr>
-    {% for bar in bares %}
-    <tr>
-      <td>{{ bar.jid }}</td>
-      <td>{{ "sim" if bar.is_open else "não" }}</td>
-      <td>{{ "%.2f"|format(bar.nota_geral) }}</td>
-      <td>{{ "%.2f"|format(bar.reputacao) }}</td>
-      <td>{{ "%.1f"|format(bar.nivel_limpeza) }}</td>
-      <td>{{ bar.clientes|length }}/{{ bar.lotacao_maxima }}</td>
-      <td>{{ bar.atendentes|length }}</td>
-      <td>{{ bar.faxineiras|length }}</td>
-      <td>{{ bar.fila_pedidos|length }}</td>
-      <td>{{ bar.pedidos_em_preparo|length }}</td>
-      <td>{{ bar.tempos_espera|length }}</td>
-      <td>{{ "%.1f"|format(bar.espera_media) }}</td>
-      <td>{{ bar.faturamento }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="13">nenhum bar iniciado ainda</td></tr>
-    {% endfor %}
-  </table>
+  <main id="cena">
+    <section id="bares"></section>
+    <section id="rua">
+      <h3>Na rua <span id="n-rua"></span></h3>
+      <div id="vagas-rua"></div>
+    </section>
+    <div id="camada"></div>
+  </main>
 
-  {% for bar in bares %}
-  <h2>{{ bar.jid }}</h2>
+  <dialog id="relatorio">
+    <h2></h2>
+    <div class="rolagem"></div>
+    <form method="dialog"><button>Fechar</button></form>
+  </dialog>
 
-  <table border="1">
-    <tr><th>Critério</th><th>Média</th><th>Nº de avaliações</th><th>Avaliações</th></tr>
-    {% for criterio, media in bar.pontuacao.items() %}
-    <tr>
-      <td>{{ criterio }}</td>
-      <td>{{ "%.2f"|format(media) }}</td>
-      <td>{{ bar.avaliacoes[criterio]|length }}</td>
-      <td>{{ bar.avaliacoes[criterio]|join(", ") }}</td>
-    </tr>
-    {% endfor %}
-  </table>
-  <br>
-  <table border="1">
-    <tr><th>Atendente</th><th>Vivo</th><th>Servindo</th></tr>
-    {% for a in bar.atendentes %}
-    <tr>
-      <td>{{ a.jid }}</td>
-      <td>{{ "sim" if a.is_alive() else "não" }}</td>
-      <td>{{ "sim" if a.is_serving else "não" }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="3">nenhum atendente</td></tr>
-    {% endfor %}
-  </table>
-  <br>
-  <table border="1">
-    <tr><th>Faxineira</th><th>Vivo</th><th>Limpando</th><th>Chamada pelo bar</th></tr>
-    {% for f in bar.faxineiras %}
-    <tr>
-      <td>{{ f.jid }}</td>
-      <td>{{ "sim" if f.is_alive() else "não" }}</td>
-      <td>{{ "sim" if f.ocupada else "não" }}</td>
-      <td>{{ "sim" if (f.jid|string) in bar.chamados_pendentes else "não" }}</td>
-    </tr>
-    {% else %}
-    <tr><td colspan="4">nenhuma faxineira</td></tr>
-    {% endfor %}
-  </table>
-  <br>
-  <table border="1">
-    <tr><th>Pedido</th><th>Cliente</th><th>Item</th><th>Preço</th><th>Situação</th><th>Atendente</th></tr>
-    {% for p in bar.pedidos_em_preparo.values() %}
-    <tr><td>#{{ p.pedido_id }}</td><td>{{ p.cliente }}</td><td>{{ p.item }}</td><td>{{ p.preco }}</td><td>em preparo</td><td>{{ p.atendente }}</td></tr>
-    {% endfor %}
-    {% for p in bar.fila_pedidos %}
-    <tr><td>#{{ p.pedido_id }}</td><td>{{ p.cliente }}</td><td>{{ p.item }}</td><td>{{ p.preco }}</td><td>na fila</td><td>-</td></tr>
-    {% endfor %}
-    {% if not bar.pedidos_em_preparo and not bar.fila_pedidos %}
-    <tr><td colspan="6">nenhum pedido pendente</td></tr>
-    {% endif %}
-  </table>
-  {% endfor %}
+  <script>
+    const PERIODO_MS = 300;
+    const TAM_CLIENTE = 12;   // px, igual ao .cli do CSS
+    const $ = (s, raiz = document) => raiz.querySelector(s);
+    const el = (tag, classe, texto) => {
+      const e = document.createElement(tag);
+      if (classe) e.className = classe;
+      if (texto != null) e.textContent = texto;
+      return e;
+    };
+    const cor = v => `hsl(${v * 12} 70% 45%)`;  // 0 = vermelho, 10 = verde
+    const medidor = v => {
+      const m = el('div', 'medidor'), i = el('i');
+      i.style.width = v * 10 + '%';
+      i.style.background = cor(v);
+      m.append(i);
+      return m;
+    };
+
+    const pontos = {}, vagasRua = {};   // por cliente
+    const assentos = {}, historico = {}, ultimaHora = {};   // por bar
+
+    function criarCartao(b) {
+      const a = el('article', 'bar');
+      a.id = 'bar-' + b.nome;
+      a.innerHTML = `
+        <h2><span class="nome"></span><span class="placa"></span></h2>
+        <div class="kpis">
+          <div><b data-k="reputacao"></b><small>reputação</small></div>
+          <div><b data-k="faturamento"></b><small>faturamento</small></div>
+          <div><b data-k="espera"></b><small>espera média</small></div>
+          <div><b data-k="entregues"></b><small>entregues</small></div>
+        </div>
+        <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none"
+             role="img" aria-label="reputação ao longo do tempo"><polyline/></svg>
+        <h3>Fila na porta <span data-k="nporta"></span></h3>
+        <div class="porta"></div>
+        <h3>Salão <span data-k="lotacao"></span></h3>
+        <div class="salao"></div>
+        <h3>Balcão</h3>
+        <div class="balcao"></div>
+        <h3>Fila de pedidos <span data-k="nfila"></span></h3>
+        <div class="fila"></div>
+        <h3>Limpeza <span data-k="limpeza"></span></h3>
+        <div data-k="nivel"></div>
+        <h3>Preços <span data-k="tendencia"></span></h3>
+        <div class="precos"></div>
+        <h3>Opinião dos clientes</h3>
+        <div class="criterios"></div>
+        <h3>Decisões do bar</h3>
+        <ul class="decisoes"></ul>
+        <button type="button">Relatório semanal</button>`;
+      $('button', a).onclick = () => abrirRelatorio(b.nome);
+      $('.nome', a).textContent = b.nome;
+      assentos[b.nome] = [];
+      for (let i = 0; i < b.fila_entrada_maxima; i++) $('.porta', a).append(el('i'));
+      historico[b.nome] = [];
+      $('#bares').append(a);
+      return a;
+    }
+
+    // devolve {cliente: elemento da vaga} dos clientes que estão neste bar
+    function atualizarBar(b, r) {
+      const a = document.getElementById('bar-' + b.nome) || criarCartao(b);
+      const k = nome => $(`[data-k=${nome}]`, a);
+
+      // o bar pode ganhar cadeiras durante a simulação
+      while (assentos[b.nome].length < b.lotacao_maxima) {
+        assentos[b.nome].push(null);
+        $('.salao', a).append(el('i', 'vaga'));
+      }
+
+      const placa = $('.placa', a);
+      placa.textContent = b.aberto ? 'ABERTO' : 'FECHADO';
+      placa.classList.toggle('fechado', !b.aberto);
+
+      k('reputacao').textContent = b.reputacao.toFixed(1);
+      k('faturamento').textContent = 'R$ ' + b.faturamento.toLocaleString('pt-BR');
+      k('espera').textContent = b.espera_media.toFixed(0) + ' min';
+      k('entregues').textContent = b.entregues;
+      k('lotacao').textContent = `${b.clientes.length}/${b.lotacao_maxima}`;
+      k('nporta').textContent = b.fila_entrada.length || '';
+      k('nfila').textContent = b.fila.length || '';
+      k('limpeza').textContent = b.limpeza.toFixed(1) +
+        (b.faxineiras.some(f => f.limpando) ? ' · faxineira limpando' : '');
+      k('nivel').replaceChildren(medidor(b.limpeza));
+
+      $('.balcao', a).replaceChildren(...b.atendentes.map(at =>
+        el('div', 'atd' + (at.item ? ' ocupado' : ''),
+           at.nome.split('_').pop() + ': ' + (at.item || 'livre'))));
+      $('.fila', a).replaceChildren(...b.fila.map(i => el('i', '', i)));
+
+      const variacao = Math.round((b.fator_preco - 1) * 100);
+      const t = k('tendencia');
+      t.textContent = ['▼ caindo', '= estável', '▲ subindo'][b.tendencia_preco + 1] +
+        (variacao ? ` · ${variacao > 0 ? '+' : ''}${variacao}% do preço base` : ' · preço base');
+      t.className = ['caindo', '', 'subindo'][b.tendencia_preco + 1];
+      $('.precos', a).replaceChildren(...Object.entries(b.cardapio).flatMap(([item, preco]) =>
+        [el('span', '', item), el('b', '', 'R$ ' + preco.toFixed(2).replace('.', ','))]));
+      $('.decisoes', a).replaceChildren(...(b.decisoes.length ? b.decisoes.slice(-3) : [null]).map(dc =>
+        el('li', '', dc ? `semana ${dc.semana}: ${dc.acao}` : 'primeira revisão no fim da semana 1')));
+
+      $('.criterios', a).replaceChildren(...Object.entries(b.pontuacao).flatMap(([c, v]) =>
+        [el('span', '', c), medidor(v), el('span', '', v.toFixed(1))]));
+
+      // um ponto de reputação por hora simulada
+      const hora = Math.floor((r.dia - 1) * 24 + r.hora);
+      const h = historico[b.nome];
+      if (r.fase === 'rodando' && hora !== ultimaHora[b.nome]) {
+        ultimaHora[b.nome] = hora;
+        h.push(b.reputacao);
+      }
+      if (h.length > 1) $('polyline', a).setAttribute('points',
+        h.map((v, i) => `${i / (h.length - 1) * 100},${30 - v * 3}`).join(' '));
+
+      // cada cliente mantém a mesma vaga enquanto estiver no bar
+      const s = assentos[b.nome], vagas = a.querySelectorAll('.vaga'), alvo = {};
+      s.forEach((n, i) => { if (n && !b.clientes.includes(n)) s[i] = null; });
+      b.clientes.forEach(n => { if (!s.includes(n) && s.includes(null)) s[s.indexOf(null)] = n; });
+      s.forEach((n, i) => { if (n) alvo[n] = vagas[i]; });
+      // quem espera na porta anda para a frente conforme a fila diminui
+      const porta = $('.porta', a).children;
+      b.fila_entrada.forEach((n, i) => { if (porta[i]) alvo[n] = porta[i]; });
+      return alvo;
+    }
+
+    // [título, campo, formatação, casas decimais da diferença]
+    const COLUNAS = [
+      ['Faturamento', 'faturamento', v => 'R$ ' + v.toLocaleString('pt-BR'), 0],
+      ['Pedidos entregues', 'entregues', v => v, 0],
+      ['Espera média', 'espera', v => v.toFixed(0) + ' min', 0],
+      ['Chegaram com bar lotado', 'recusas', v => v, 0],
+      ['Reputação', 'reputacao', v => v.toFixed(1), 1],
+      ['Atendentes', 'atendentes', v => v, 0],
+      ['Cadeiras', 'lotacao', v => v, 0],
+      ['Preço (% do base)', 'fator_preco', v => Math.round(v * 100) + '%', 2],
+    ];
+    let ultimo = null;  // último estado recebido
+
+    // tabela com uma linha por semana e, em cada célula, a diferença para a semana anterior
+    function abrirRelatorio(nome) {
+      const semanas = ultimo.bares.find(b => b.nome === nome).decisoes;
+      const tabela = el('table', 'texto-no-fim');
+      tabela.append(el('tr'));
+      ['Semana', ...COLUNAS.map(c => c[0]), 'Decisão do bar'].forEach(t => tabela.rows[0].append(el('th', '', t)));
+      semanas.forEach((s, i) => {
+        const tr = tabela.appendChild(el('tr'));
+        tr.append(el('td', '', s.semana));
+        for (const [, campo, fmt, casas] of COLUNAS) {
+          const td = tr.appendChild(el('td', '', s[campo] == null ? '-' : fmt(s[campo])));
+          const dif = i && s[campo] != null ? s[campo] - semanas[i - 1][campo] : 0;
+          const texto = campo === 'fator_preco' ? Math.round(Math.abs(dif) * 100) + ' p.p.'
+                                                : Math.abs(dif).toFixed(casas).replace('.', ',');
+          td.append(el('small', '', +dif.toFixed(casas) ? (dif > 0 ? '▲ ' : '▼ ') + texto : i ? '=' : ''));
+        }
+        tr.append(el('td', '', s.acao));
+      });
+      $('#relatorio h2').textContent = `${nome} · relatório semanal`;
+      $('#relatorio .rolagem').replaceChildren(
+        semanas.length ? tabela : el('p', '', 'Nenhuma semana fechada ainda. A primeira revisão acontece no fim da semana 1.'));
+      $('#relatorio').showModal();
+    }
+
+    const montarTabela = (cabecalho, linhas, classe) => {
+      const t = el('table', classe);
+      [cabecalho, ...linhas].forEach((linha, i) => {
+        const tr = t.appendChild(el('tr'));
+        linha.forEach(c => tr.append(el(i ? 'td' : 'th', '', c)));
+      });
+      return t;
+    };
+    const reais = v => 'R$ ' + v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+    const soma = (lista, f) => lista.reduce((s, x) => s + f(x), 0);
+
+    // comparação entre os bares (do maior faturamento para o menor) + faturamento semana a semana
+    function abrirResumo() {
+      if (!ultimo || !ultimo.bares.length) return;
+      const bares = [...ultimo.bares].sort((a, b) => b.faturamento - a.faturamento);
+      const mudou = b => {
+        const ini = b.decisoes[0] || {};   // situação do bar durante a semana 1
+        const da = b.atendentes.length - (ini.atendentes ?? b.atendentes.length);
+        const dc = b.lotacao_maxima - (ini.lotacao ?? b.lotacao_maxima);
+        const dp = Math.round((b.fator_preco - 1) * 100);
+        return [da && `+${da} atendente(s)`, dc && `+${dc} cadeiras`, dp && `preço ${dp > 0 ? '+' : ''}${dp}%`]
+          .filter(Boolean).join(', ') || 'nada';
+      };
+      const geral = montarTabela(
+        ['Bar', 'Faturamento', 'Pedidos entregues', 'Espera média', 'Reputação', 'Chegaram com bar lotado',
+         'Atendentes', 'Cadeiras', 'Preço (% do base)', 'O que mudou desde o início'],
+        [...bares.map(b => [b.nome, reais(b.faturamento), b.entregues, b.espera_media.toFixed(0) + ' min',
+                            b.reputacao.toFixed(1), b.recusas_lotado ?? '-', b.atendentes.length,
+                            b.lotacao_maxima, Math.round(b.fator_preco * 100) + '%', mudou(b)]),
+         ['Total', reais(soma(bares, b => b.faturamento)), soma(bares, b => b.entregues), '', '',
+          soma(bares, b => b.recusas_lotado ?? 0), soma(bares, b => b.atendentes.length),
+          soma(bares, b => b.lotacao_maxima), '', '']],
+        'texto-no-fim');
+
+      const semanas = Math.max(...bares.map(b => b.decisoes.length));
+      const porSemana = montarTabela(
+        ['Semana', ...bares.map(b => b.nome)],
+        Array.from({ length: semanas }, (_, i) =>
+          [bares[0].decisoes[i]?.semana ?? i + 1, ...bares.map(b => b.decisoes[i] ? reais(b.decisoes[i].faturamento ?? 0) : '-')]));
+
+      const melhorRep = [...bares].sort((a, b) => b.reputacao - a.reputacao)[0];
+      $('#relatorio h2').textContent = `Resumo geral · dia ${ultimo.relogio.dia}`;
+      $('#relatorio .rolagem').replaceChildren(
+        el('p', '', `Maior faturamento: ${bares[0].nome} (${reais(bares[0].faturamento)}). ` +
+                    `Melhor reputação: ${melhorRep.nome} (${melhorRep.reputacao.toFixed(1)}).`),
+        geral,
+        el('h3', '', 'Faturamento por semana'),
+        semanas ? porSemana : el('p', '', 'Nenhuma semana fechada ainda.'));
+      $('#relatorio').showModal();
+    }
+    $('#btn-resumo').onclick = abrirResumo;
+
+    function desenhar(d) {
+      ultimo = d;
+      const r = d.relogio;
+      const h = Math.floor(r.hora), min = Math.floor(r.hora % 1 * 60);
+      document.documentElement.style.setProperty('--luz', Math.max(0, Math.sin((r.hora - 6) / 12 * Math.PI)));
+      $('#hora').textContent = String(h).padStart(2, '0') + ':' + String(min).padStart(2, '0');
+      $('#fase').textContent = {
+        aguardando: 'subindo os agentes...',
+        rodando: `Dia ${r.dia} · Semana ${r.semana} · 1 dia = ${r.escala} s`,
+        encerrado: `Simulação encerrada no dia ${r.dia} · resultado final`,
+      }[r.fase];
+
+      const alvo = Object.assign({}, ...d.bares.map(b => atualizarBar(b, r)));
+
+      for (const c of d.clientes) {
+        if (!pontos[c.nome]) {
+          const p = pontos[c.nome] = $('#camada').appendChild(el('i', 'cli ' + c.perfil));
+          p.title = `${c.nome} (${c.perfil})`;
+          vagasRua[c.nome] = $('#vagas-rua').appendChild(el('i'));
+          // nasce já no lugar, sem voar do canto da tela
+          p.style.transition = 'none';
+          requestAnimationFrame(() => requestAnimationFrame(() => p.style.transition = ''));
+        }
+      }
+      // posições lidas só depois de todo o layout estar montado
+      const cena = $('#cena').getBoundingClientRect();
+      for (const c of d.clientes) {
+        const v = (alvo[c.nome] || vagasRua[c.nome]).getBoundingClientRect();
+        pontos[c.nome].style.transform = `translate(${v.left - cena.left + (v.width - TAM_CLIENTE) / 2}px, ` +
+          `${v.top - cena.top + (v.height - TAM_CLIENTE) / 2}px)`;
+      }
+      $('#n-rua').textContent = d.clientes.length - Object.keys(alvo).length;
+    }
+
+    async function ciclo() {
+      try {
+        desenhar(await (await fetch('/estado')).json());
+      } catch (e) {
+        console.error(e);
+        $('#fase').textContent = 'sem conexão com a simulação';
+      }
+      setTimeout(ciclo, PERIODO_MS);
+    }
+    ciclo();
+  </script>
 </body>
 </html>
