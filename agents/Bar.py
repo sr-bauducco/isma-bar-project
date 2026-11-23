@@ -1,7 +1,7 @@
 import itertools
 import json
 import random
-from collections import deque
+from collections import Counter, deque
 
 import spade
 import estrategia_bar
@@ -48,6 +48,9 @@ class Bar(spade.agent.Agent):
         self.faturamento = 0  # R$ dos pedidos entregues
         self.concorrentes = []         # JIDs dos outros bares (preenchido pelo main.py)
         self.fila_entrada = deque()    # JIDs esperando vaga na porta, em ordem de chegada
+        # como terminou cada chegada: direta | fila | recusa (fila cheia) | entrou_pela_fila | desistiu_da_fila
+        self.chegadas = Counter()
+        self.ocupacao_por_hora = {}    # hora do dia -> [amostras, soma de clientes dentro, soma na porta]
         self.recusas_lotado = 0        # clientes que chegaram com o bar lotado (total)
         self.fator_preco = 1.0         # preço atual / preço base do cardápio
         self.tendencia_preco = 0       # última revisão semanal: -1 baixou, 0 manteve, +1 subiu

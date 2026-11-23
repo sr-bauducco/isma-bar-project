@@ -1,4 +1,5 @@
 import os
+from collections import Counter
 
 from aiohttp import web
 
@@ -29,11 +30,24 @@ def _estado_bar(bar):
         "espera_media": bar.espera_media,
         "faturamento": bar.faturamento,
         "recusas_lotado": bar.recusas_lotado,
+        "chegadas": bar.chegadas,
+        "ocupacao_por_hora": {h: [dentro / n, porta / n] for h, (n, dentro, porta) in bar.ocupacao_por_hora.items()},
         "cardapio": bar.cardapio,
         "fator_preco": bar.fator_preco,
         "tendencia_preco": bar.tendencia_preco,
         "decisoes": bar.decisoes,
     }
+
+
+def _satisfacao(clientes):
+    """Por perfil: quantas avaliações, a nota média e quantas de cada rótulo."""
+    perfis = {}
+    for c in clientes:
+        p = perfis.setdefault(c.perfil, {"soma": 0.0, "rotulos": Counter()})
+        p["soma"] += c.soma_satisfacao
+        p["rotulos"].update(c.rotulos)
+    return {perfil: {"n": (n := sum(p["rotulos"].values())), "media": p["soma"] / n if n else 0.0,
+                     "rotulos": p["rotulos"]} for perfil, p in perfis.items()}
 
 
 def estado(bares, clientes):
@@ -48,6 +62,7 @@ def estado(bares, clientes):
             "escala": relogio.escala(),
         },
         "clientes": [{"nome": c.jid.user, "perfil": c.perfil} for c in clientes],
+        "satisfacao": _satisfacao(clientes),
         "bares": [_estado_bar(b) for b in bares],
     }
 

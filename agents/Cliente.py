@@ -2,6 +2,7 @@ import asyncio
 import json
 import random
 import time
+from collections import Counter
 
 from spade.behaviour import CyclicBehaviour
 from spade.message import Message
@@ -153,6 +154,8 @@ class IrAoBarBehaviour(CyclicBehaviour):
             "decoracao": _nota(decoracao),
         }
         nota, rotulo, _ = avaliacao.avaliar(sentiu, cliente.perfil)
+        cliente.rotulos[rotulo] += 1
+        cliente.soma_satisfacao += nota
         print(f"[{nome}] {pedido['item']} em {bar}: "
               f"{f'{espera:.0f} min' if entrega else 'desisti de esperar'}, achei {rotulo} ({nota:.1f})")
         # fato para o cérebro BDI do cliente (cliente.asl)
@@ -180,6 +183,8 @@ class AgenteCliente(BDIAgent):
         self.perfil = perfil
         self.bares = list(bares)   # JIDs dos bares que o cliente conhece
         self.itens = list(itens)
+        self.rotulos = Counter()      # quantas avaliações de cada rótulo (ruim/regular/boa/otima) já deu
+        self.soma_satisfacao = 0.0    # soma das notas, para a média no resumo do painel
 
     async def setup(self):
         print(f"[{self.jid}] Cliente '{self.perfil}' inicializado.")

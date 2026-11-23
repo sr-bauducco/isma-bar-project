@@ -145,6 +145,11 @@ class RevisarSemana(PeriodicBehaviour):
         if not relogio.rodando():
             return
         bar = self.agent
+        # este behaviour roda a cada hora simulada: aproveita para amostrar a ocupação por hora do dia
+        amostra = bar.ocupacao_por_hora.setdefault(relogio.hora_do_dia(), [0, 0, 0])
+        amostra[0] += 1
+        amostra[1] += len(bar.clientes)
+        amostra[2] += len(bar.fila_entrada)
         semana = relogio.semana_atual()
         if self._semana is None:
             self._semana = semana
@@ -158,7 +163,7 @@ class RevisarSemana(PeriodicBehaviour):
 
         preco_medio = mean(bar.cardapio.values())
         preco_rivais = await self.precos_dos_rivais() if perdendo else None
-        acoes = decidir(espera, recusas, bar.reputacao, len(bar.atendentes), bar.lotacao_maxima,
+        acoes = decidir(espera, recusas, numeros["reputacao"], len(bar.atendentes), bar.lotacao_maxima,
                         bar.fator_preco, preco_medio, preco_rivais)
 
         bar.tendencia_preco = 0
@@ -178,7 +183,7 @@ class RevisarSemana(PeriodicBehaviour):
                     motivo = (f"faturamento caiu de R$ {anterior:.0f} para R$ {faturamento:.0f}; preço médio "
                               f"era R$ {preco_medio:.2f} contra R$ {preco_rivais:.2f} dos concorrentes")
                 else:
-                    motivo = f"reputação {bar.reputacao:.1f}"
+                    motivo = f"reputação {numeros['reputacao']:.1f}"
                 feitos.append(f"{'baixou' if acao == 'baixar_preco' else 'subiu'} o preço para "
                               f"{bar.fator_preco:.0%} do base ({motivo})")
         texto = "; ".join(feitos) or "manteve tudo como está"
