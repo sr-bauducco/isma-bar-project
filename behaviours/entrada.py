@@ -27,6 +27,7 @@ async def chamar_fila(behaviour):
     while bar.fila_entrada and len(bar.clientes) < bar.lotacao_maxima:
         cliente = bar.fila_entrada.popleft()
         bar.clientes.add(cliente)
+        bar.chegadas["entrou_pela_fila"] += 1
         msg = Message(to=cliente)
         msg.set_metadata("performative", "agree")
         msg.set_metadata("ontology", "entrar")
@@ -63,16 +64,20 @@ class ReceberEntrada(CyclicBehaviour):
             if cliente not in bar.fila_entrada:
                 bar.recusas_lotado += 1  # chegou com o bar lotado (entrando na fila ou não)
                 if len(bar.fila_entrada) >= LIMITE_FILA_ENTRADA:
+                    bar.chegadas["recusa"] += 1
                     await responder(self, msg, "refuse", {"motivo": "lotado"})
                     print(f"[{bar.jid.user}] recusei {msg.sender.user}: lotado")
                     return
                 bar.fila_entrada.append(cliente)
+                bar.chegadas["fila"] += 1
             posicao = bar.fila_entrada.index(cliente) + 1
             await responder(self, msg, "inform", {"posicao": posicao})
             print(f"[{bar.jid.user}] {msg.sender.user} ficou na fila da porta (posição {posicao})")
             return
 
-        bar.clientes.add(cliente)  # entrar de novo estando dentro não dá erro
+        if cliente not in bar.clientes:  # entrar de novo estando dentro não dá erro (nem conta)
+            bar.chegadas["direta"] += 1
+        bar.clientes.add(cliente)
         await responder(self, msg, "agree", _boas_vindas(bar))
         print(f"[{bar.jid.user}] {msg.sender.user} entrou ({len(bar.clientes)}/{bar.lotacao_maxima})")
 
@@ -92,6 +97,7 @@ class ReceberSaida(CyclicBehaviour):
         cliente = str(msg.sender.bare)
         if cliente in bar.fila_entrada:
             bar.fila_entrada.remove(cliente)
+            bar.chegadas["desistiu_da_fila"] += 1
             print(f"[{bar.jid.user}] {msg.sender.user} desistiu da fila da porta")
         bar.clientes.discard(cliente)
         # quem sai sem esperar a entrega tem os pedidos da fila cancelados (o que já está em preparo segue)

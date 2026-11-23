@@ -75,6 +75,10 @@
     dialog th { color: var(--fraco); font-weight: 600; white-space: normal; }
     dialog td:first-child, dialog th:first-child { text-align: left; }
     dialog h3 { margin-top: 20px; }
+    .oc { display: flex; align-items: flex-end; gap: 3px; }
+    .oc div { flex: 1; min-width: 24px; text-align: center; font-size: 11px; }
+    .oc b { display: block; background: var(--ambar); }
+    .oc u { display: block; border: 1px solid var(--ambar); border-bottom: 0; }
     header button { margin-top: 0; }
     .texto-no-fim td:last-child, .texto-no-fim th:last-child { text-align: left; white-space: normal; min-width: 260px; }
     dialog small { display: block; color: var(--fraco); }
@@ -317,6 +321,42 @@
         Array.from({ length: semanas }, (_, i) =>
           [bares[0].decisoes[i]?.semana ?? i + 1, ...bares.map(b => b.decisoes[i] ? reais(b.decisoes[i].faturamento ?? 0) : '-')]));
 
+      // como terminou cada tentativa de entrar (contado pelos bares)
+      const pct = (v, t) => t ? ` (${Math.round(100 * v / t)}%)` : '';
+      const linhaChegadas = (nome, c, total) => {
+        const g = k => c[k] || 0, t = g('direta') + g('fila') + g('recusa');
+        return [nome, t + pct(t, total), g('direta') + pct(g('direta'), t), g('fila') + pct(g('fila'), t),
+                g('recusa') + pct(g('recusa'), t), g('entrou_pela_fila') + pct(g('entrou_pela_fila'), g('fila')),
+                g('desistiu_da_fila') + pct(g('desistiu_da_fila'), g('fila'))];
+      };
+      const todas = {};
+      bares.forEach(b => Object.entries(b.chegadas || {}).forEach(([k, v]) => todas[k] = (todas[k] || 0) + v));
+      const tentativas = (todas.direta || 0) + (todas.fila || 0) + (todas.recusa || 0);
+      const chegadas = montarTabela(
+        ['Bar', 'Tentativas de visita', 'Entrou direto', 'Foi para a fila da porta', 'Recusado (fila cheia)',
+         'Entrou pela fila', 'Desistiu da fila'],
+        [...bares.map(b => linhaChegadas(b.nome, b.chegadas || {}, tentativas)), linhaChegadas('Total', todas, 0)]);
+
+      const satisfacao = montarTabela(
+        ['Perfil', 'Avaliações', 'Nota média', 'ruim', 'regular', 'boa', 'ótima'],
+        Object.entries(ultimo.satisfacao || {}).map(([perfil, s]) =>
+          [perfil, s.n, s.media.toFixed(1), ...['ruim', 'regular', 'boa', 'otima'].map(r =>
+            s.n ? Math.round(100 * (s.rotulos[r] || 0) / s.n) + '%' : '-')]));
+
+      // barras: clientes dentro (cheio) + na porta (contorno), média por hora do dia, somando os bares
+      const horas = Array.from({ length: 24 }, (_, h) =>
+        [0, 1].map(i => soma(bares, b => (b.ocupacao_por_hora || {})[h]?.[i] || 0)));
+      const teto = Math.max(1, ...horas.map(([d, p]) => d + p));
+      const ocupacao = el('div', 'oc');
+      horas.forEach(([d, p], h) => {
+        const col = ocupacao.appendChild(el('div'));
+        col.title = `${h}h: ${d.toFixed(1)} dentro, ${p.toFixed(1)} na porta`;
+        const porta = el('u'), dentro = el('b');
+        porta.style.height = p / teto * 100 + 'px';
+        dentro.style.height = d / teto * 100 + 'px';
+        col.append(el('small', '', Math.round(d + p)), ...(p >= 0.5 ? [porta] : []), dentro, el('small', '', h + 'h'));
+      });
+
       const melhorRep = [...bares].sort((a, b) => b.reputacao - a.reputacao)[0];
       $('#relatorio h2').textContent = `Resumo geral · dia ${ultimo.relogio.dia}`;
       $('#relatorio .rolagem').replaceChildren(
@@ -324,7 +364,10 @@
                     `Melhor reputação: ${melhorRep.nome} (${melhorRep.reputacao.toFixed(1)}).`),
         geral,
         el('h3', '', 'Faturamento por semana'),
-        semanas ? porSemana : el('p', '', 'Nenhuma semana fechada ainda.'));
+        semanas ? porSemana : el('p', '', 'Nenhuma semana fechada ainda.'),
+        el('h3', '', 'Entrada nos bares'), chegadas,
+        el('h3', '', 'Satisfação dos clientes por perfil'), satisfacao,
+        el('h3', '', 'Ocupação média por hora do dia (cheio = dentro, contorno = na fila da porta)'), ocupacao);
       $('#relatorio').showModal();
     }
     $('#btn-resumo').onclick = abrirResumo;
