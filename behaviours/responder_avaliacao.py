@@ -9,7 +9,7 @@ class ResponderAvaliacao(CyclicBehaviour):
     Recebe:  query-ref / avaliacao  (body vazio)
     Responde: inform / avaliacao    body JSON:
         {"bar": "bar1@localhost", "nota_geral": 8.25,
-         "pontuacao": {"limpeza": 10.0, ...}, "num_avaliacoes": 7}
+         "pontuacao": {"limpeza": 10.0, ...}, "num_avaliacoes": 7, "clientes": 3, "reputacao": 6.4}
     """
 
     async def run(self):
@@ -26,6 +26,8 @@ class ResponderAvaliacao(CyclicBehaviour):
             "nota_geral": round(bar.nota_geral, 2),
             "pontuacao": {c: round(v, 2) for c, v in bar.pontuacao.items()},
             "num_avaliacoes": sum(len(notas) for notas in bar.avaliacoes.values()),
+            "clientes": len(bar.clientes),
+            "reputacao": round(bar.reputacao, 2),
         })
         await self.send(resp)
         print(f"[{bar.jid.user}] {msg.sender.user} pediu minha avaliação: {bar.nota_geral:.2f}")

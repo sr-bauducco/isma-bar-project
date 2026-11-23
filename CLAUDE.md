@@ -44,13 +44,15 @@ Order flow: the bar queues orders in `fila_pedidos`; `distribuir()` (run immedia
 | From → To | performative | ontology | body |
 |---|---|---|---|
 | cliente → bar | `request` | `entrar` | empty → `agree` `{"clientes", "lotacao_maxima"}` or `refuse` `{"motivo": "fechado"\|"lotado"}` |
-| cliente → bar | `inform` | `sair` | empty, no reply |
+| cliente → bar | `inform` | `sair` | empty, no reply; also how a client gives up the door queue |
+| bar → cliente | `inform` / later `agree` | `entrar` | bar full: `inform` `{"posicao"}` puts the client in `Bar.fila_entrada` (max `LIMITE_FILA_ENTRADA`, beyond that `refuse` `lotado`); when a seat frees, `chamar_fila()` in `behaviours/entrada.py` sends the `agree`. The client waits `PACIENCIA_FILA_MINUTOS` |
 | cliente → bar | `request` | `pedido` | `{"item"}` (key of `Bar.cardapio`) → `agree` `{"pedido_id", "item", "preco", "posicao"}` or `refuse` `{"motivo": "fechado"\|"fora_do_bar"\|"item_inexistente"\|"formato_invalido"}` |
 | bar → atendente | `request` | `preparar` | `{"pedido_id", "cliente", "item", "preco"}` |
 | atendente → cliente | `inform` | `entrega` | `{"pedido_id", "item", "preco", "bar", "atendente"}` |
 | atendente → bar | `inform` | `pedido_pronto` | `{"pedido_id"}` |
 | atendente/cliente → bar | `inform` | `avaliacao` | `"<criterio>:<nota>"` (e.g. `atendimento:3`), nota parsed with `int()`, criterion ∈ `Bar.pontuacao` |
 | anyone → bar | `query-ref` | `avaliacao` | empty; bar replies `inform`/`avaliacao` JSON `{"bar", "nota_geral", "pontuacao", "num_avaliacoes"}` (`behaviours.ResponderAvaliacao`) |
+| bar → bar | `query-ref` | `precos` | empty; rival replies `inform`/`precos` JSON `{"bar", "cardapio"}` (`behaviours.gestao.ResponderPrecos`); the reply is read by `RevisarSemana`, registered with `template("inform", "precos")` |
 | bar → faxineira | `request` | `limpar` | empty |
 | faxineira → bar | `inform` | `limpeza_feita` | JSON `{"quantidade": float}` |
 
@@ -62,4 +64,10 @@ New agents go in `agents/` (one class per file, PascalCase filename) and must be
 
 `main.py` starts `NUM_BARES` bars (`bar1..N@localhost`); each `Bar` draws its attendant count randomly between `MIN_ATENDENTES` and `MAX_ATENDENTES` unless `num_atendentes` is passed.
 
-Web: `rotas.py` (`iniciar_painel(bares)`) runs a single standalone aiohttp + Jinja server at `127.0.0.1:10000/painel` that renders all bars from the shared list. It deliberately does not use SPADE's per-agent `agent.web` (that would mean one server/port per bar). Templates are in `templates/`.
+Peak hours: `HORARIO_PICO_HORAS` in `agents/Cliente.py` (18h–23h). `horas_ate_proxima_visita()` draws the normal rest between visits but never lets a client skip a peak window, so every client attempts a bar once per peak (it may still be refused as `lotado`). Inside the peak the rest is short (`INTERVALO_PICO_MINUTOS`), so refused and served clients keep retrying until the peak ends. Checked offline by `python teste_pico.py`.
+
+Weekly management: `behaviours.RevisarSemana` (on the Bar) checks every sim hour whether the week changed and then applies every action returned by the pure function `behaviours.gestao.decidir()` (a list; several actions can happen in the same week, at most one price move) (thresholds are module constants there): hire an attendant (`Bar.contratar_atendente()`, also used by `setup()`), add chairs (`lotacao_maxima`), or move prices (`Bar.ajustar_preco()` rescales the whole `cardapio` from `CARDAPIO` by `fator_preco`). If the week's revenue fell below `QUEDA_FATURAMENTO` × the previous week's, it first asks the rivals (`Bar.concorrentes`, filled by `main.py`) for their menus and the price move follows that comparison instead of reputation: pricier than them → lower, cheaper → raise. Each week is logged in `Bar.decisoes` (the week's numbers + `acao`); `main.py` calls `bar.revisao.fechar_semana_parcial()` at the end so the last incomplete week is included, and the panel's "Relatório semanal" button on each bar renders that list with week-over-week differences. The header's "Resumo geral" button compares all bars (totals, what changed since week 1, revenue per week). Checked offline by `python teste_gestao.py`. A client that leaves (`sair`) has its queued orders cancelled.
+
+Client visit: after entering, the client orders 1–3 items (`PEDIDOS_POR_VISITA`), spending `TEMPO_CONSUMO_MINUTOS` on each, and leaves early if an order is refused or not delivered within `ESPERA_MAXIMA_HORAS`.
+
+Web: `rotas.py` (`iniciar_painel(bares)`) runs a single standalone aiohttp server at `127.0.0.1:10000`: `/painel` serves the static `templates/painel.html` (vanilla JS, no build), which polls `/estado` (JSON snapshot of clock, bars and clients built by `rotas.estado()`) every 300 ms and animates it. A new field shown in the panel must be added to `_estado_bar()`. It deliberately does not use SPADE's per-agent `agent.web` (that would mean one server/port per bar).
